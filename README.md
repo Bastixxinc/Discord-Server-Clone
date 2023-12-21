@@ -8,7 +8,7 @@ Dieser Discord-Bot ermöglicht es, die Struktur eines Discord-Servers zu speiche
 ### Befehle
 - `!save`: Speichert die aktuelle Serverstruktur in einer JSON-Datei.
 - `!list`: Listet alle gespeicherten Serverstrukturen auf.
-- `!load <Nummer>`: Lädt eine gespeicherte Serverstruktur basierend auf der nummerierten Liste, die durch `!list` angezeigt wird. Archiviert vorhandene Kanäle unter Berücksichtigung von Discord-Rate-Limits.
+- `!load <Nummer>`: Lädt eine gespeicherte Serverstruktur basierend auf der nummerierten Liste, die durch `!list` angezeigt wird. Archiviert vorhandene Kanäle.
 - `!clear`: Löscht das Archiv mit allen darin enthaltenen Kanälen und Kategorien.
 
 ## Einrichtung
