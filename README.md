@@ -44,13 +44,14 @@ Am Ende des Skripts wird der Bot mit dem angegebenen Token gestartet.
 ## Lizenz
 Dieser Bot ist unter der GNU General Public License v2.0 veröffentlicht.
 
-
-
-
-
-
+.
+.
+.
+.
+.
 
 ### English
+.
 
 ## Description
 This Discord bot enables the saving and transferring of a Discord server's structure to other servers. It provides functionalities for archiving old channels and categories, as well as deleting the archive. The bot also considers Discord rate limits to ensure that requests are processed in accordance with Discord API restrictions.
