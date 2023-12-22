@@ -1,110 +1,182 @@
-# Discord-Server-Clone
-For english version, scroll down.
 
-## Beschreibung
-Dieser Discord-Bot ermöglicht es, die Struktur eines Discord-Servers zu speichern und auf andere Server zu übertragen. Er bietet Funktionen zum Archivieren alter Kanäle und Kategorien sowie das Löschen des Archivs. Der Bot berücksichtigt auch Discord-Rate-Limits, um sicherzustellen, dass Anfragen entsprechend den Discord-API-Beschränkungen verarbeitet werden.
+# Discord Server Management Bot
+
+## Einleitung
+
+Dieser Bot bietet Funktionen zur Verwaltung von Discord-Serverstrukturen. Er ermöglicht Benutzern, die Struktur eines Servers - einschließlich aller Kategorien und Kanäle - zu speichern, zu archivieren und wiederherzustellen.
+
+## Einrichtung
+
+### Voraussetzungen
+- Python 3.8 oder höher
+- discord.py Bibliothek
+- Ein gültiger Discord-Bot Token
+
+### Installation
+1. Repository klonen: `git clone [Repository-URL]`.
+2. Benötigte Bibliotheken installieren: `pip install -r requirements.txt`.
+3. Discord-Bot Token in die Variable `BOT_TOKEN` im Code einfügen.
 
 ## Bedienung
 
 ### Befehle
 - `!save`: Speichert die aktuelle Serverstruktur in einer JSON-Datei.
+- `!load [Nummer]`: Lädt eine gespeicherte Serverstruktur basierend auf der Liste aus `!list`.
 - `!list`: Listet alle gespeicherten Serverstrukturen auf.
-- `!load <Nummer>`: Lädt eine gespeicherte Serverstruktur basierend auf der nummerierten Liste, die durch `!list` angezeigt wird. Archiviert vorhandene Kanäle.
-- `!clear`: Löscht das Archiv mit allen darin enthaltenen Kanälen und Kategorien.
+- `!clear`: Löscht alle archivierten Kategorien und deren Kanäle.
 
-## Einrichtung
+## Detaillierte Code-Erklärung
 
-1. **Bot Token**: Um den Bot auszuführen, benötigen Sie einen Discord Bot Token, den Sie im Discord Developer Portal erhalten können. Setzen Sie diesen Token am Ende des Skripts ein.
-2. **Abhängigkeiten**: Dieses Skript verwendet die `discord.py` Bibliothek. Installieren Sie die erforderlichen Bibliotheken mit `pip install -r requirements.txt`.
-3. **Ausführung**: Führen Sie das Skript in Ihrer Python-Umgebung aus. Der Bot sollte sich dann in Ihrem Discord-Server einloggen.
+### Bot Initialisierung
+```python
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix=BOT_COMMAND_PREFIX, intents=intents, help_command=BOT_HELP_COMMAND)
+```
+Der Bot wird mit einem Befehlsprefix initialisiert und nutzt Discord-Intents, um auf Server- und Nachrichtenereignisse reagieren zu können.
 
-## Code-Segmente
+### Event `on_ready`
+```python
+@bot.event
+async def on_ready():
+    print(MSG_LOGGED_IN.format(bot=bot))
+```
+Dieses Ereignis bestätigt, dass der Bot online und betriebsbereit ist.
 
-### Initialisierung
-Der Bot wird mit spezifischen Intents initialisiert, um auf Serverinformationen und Nachrichteninhalte zugreifen zu können.
+### Funktion `save_guild_structure`
+```python
+async def save_guild_structure(guild_id):
+    guild = bot.get_guild(guild_id)
+    if not guild:
+        return MSG_ERROR_SERVER_NOT_FOUND
+    
+    # Struktur des Servers wird in einem Dictionary gespeichert
+    structure = {'name': guild.name, 'categories': []}
 
-### Ereignishandler
-- `on_ready()`: Wird aufgerufen, wenn der Bot sich erfolgreich eingeloggt hat und bereit ist.
+    # Durchläuft alle Kategorien und speichert Informationen zu Kanälen
+    for category in guild.categories:
+        category_info = {'name': category.name, 'position': category.position, 'channels': []}
+        for channel in category.channels:
+            channel_info = {'name': channel.name, 'type': str(channel.type), 'position': channel.position}
+            category_info['channels'].append(channel_info)
+        structure['categories'].append(category_info)
 
-### Hilfsfunktionen
-- `save_guild_structure(guild_id)`: Speichert die Struktur des angegebenen Servers.
-- `load_guild_structure(guild_id, structure_file)`: Lädt eine gespeicherte Serverstruktur und archiviert vorhandene Kanäle, wobei Discord-Rate-Limits berücksichtigt werden.
-- `archive_guild_channels(guild)`: Verschiebt alle Kanäle in eine Archiv-Kategorie und beachtet dabei Discord-Rate-Limits.
-- `list_saved_guilds()`: Listet alle gespeicherten Serverstrukturen auf.
+    # Speichert die Struktur in einer JSON-Datei
+    with open(f'{guild.name}_structure.json', 'w', encoding='utf-8') as f:
+        json.dump(structure, f, ensure_ascii=False, indent=4)
+    return MSG_STRUCTURE_SAVED.format(guild=guild)
+```
+Diese Funktion speichert die gesamte Struktur eines Servers, inklusive Kategorien und Kanäle, in einer JSON-Datei.
 
-### Befehlsfunktionen
-- `save_command(ctx)`: Behandelt den `!save` Befehl.
-- `load_command(ctx, number)`: Behandelt den `!load` Befehl mit einer Nummer als Argument.
-- `list_command(ctx)`: Behandelt den `!list` Befehl.
-- `clear_command(ctx)`: Behandelt den `!clear` Befehl.
+### Funktion `load_guild_structure`
+```python
+async def load_guild_structure(guild_id, structure_file):
+    guild = bot.get_guild(guild_id)
+    if not guild:
+        return MSG_ERROR_SERVER_NOT_FOUND
 
-### Bot-Ausführung
-Am Ende des Skripts wird der Bot mit dem angegebenen Token gestartet.
+    # Archiviert bestehende Kanäle
+    archive_message = await archive_guild_channels(guild)
+
+    # Lädt die Struktur aus der angegebenen Datei
+    with open(structure_file, 'r', encoding='utf-8') as f:
+        structure = json.load(f)
+    
+    # Erstellt neue Kategorien und Kanäle basierend auf der geladenen Struktur
+    category_mapping = {}
+    for category_info in structure['categories']:
+        new_category = await guild.create_category(category_info['name'])
+        category_mapping[category_info['name']] = new_category
+
+        for channel_info in category_info['channels']:
+            if channel_info['type'] == 'text':
+                await new_category.create_text_channel(channel_info['name'])
+            elif channel_info['type'] == 'voice':
+                await new_category.create_voice_channel(channel_info['name'])
+
+    return MSG_STRUCTURE_LOADED.format(guild=guild, archive_message=archive_message)
+```
+Diese Funktion lädt die Struktur eines Servers aus einer JSON-Datei und stellt diese auf dem Discord-Server wieder her.
+
+### Funktion `archive_guild_channels`
+```python
+async def archive_guild_channels(guild):
+    for channel in guild.channels:
+        if isinstance(channel, discord.TextChannel) or isinstance(channel, discord.VoiceChannel):
+            # Bestimmt die K
+
+ategorie für den Kanal
+            if not channel.category or not (channel.category.name.startswith(ARCHIVE_PREFIX) or channel.category.name.startswith(NON_DELETABLE_PREFIX)):
+                try:
+                    category = await get_or_create_category(guild, ARCHIVE_PREFIX)
+                    await channel.edit(category=category)
+                    await asyncio.sleep(1)
+                except discord.errors.HTTPException as e:
+                    if e.status == 429:
+                        await asyncio.sleep(e.retry_after)
+                    else:
+                        raise
+    return MSG_ALL_CHANNELS_MOVED
+```
+Archiviert alle Kanäle in spezielle Archivkategorien, um Platz für die neue Struktur zu schaffen.
+
+---
+
+## Funktion `clear_command`
+
+### Zweck und Funktionsweise
+Die `clear_command` Funktion wird durch den `!clear` Befehl ausgelöst. Ihr Hauptzweck ist es, alle archivierten Kategorien und die darin enthaltenen Kanäle zu löschen. Dies ist nützlich, um Platz zu schaffen und alte, nicht mehr benötigte Strukturen zu entfernen.
+
+### Code-Erklärung
+
+```python
+@bot.command(name=CMD_CLEAR)
+async def clear_command(ctx):
+    guild = ctx.guild
+    try:
+        # Durchläuft alle Kategorien des Guilds
+        for category in guild.categories:
+            # Überprüft, ob die Kategorie zum Archiv gehört
+            if category.name.startswith(ARCHIVE_PREFIX):
+                # Löscht jeden Kanal innerhalb der Kategorie
+                for channel in category.channels:
+                    try:
+                        await channel.delete()
+                        await asyncio.sleep(1)
+                    except discord.errors.HTTPException as e:
+                        if e.status == 429:
+                            await asyncio.sleep(e.retry_after)
+                        else:
+                            raise
+                # Löscht die Kategorie selbst
+                try:
+                    await category.delete()
+                    await asyncio.sleep(1)
+                except discord.errors.HTTPException as e:
+                    if e.status == 429:
+                        await asyncio.sleep(e.retry_after)
+                    else:
+                        raise
+        # Sendet eine Bestätigungsnachricht
+        await ctx.author.send(MSG_ARCHIVE_CLEARED)
+    except discord.errors.HTTPException as e:
+        if e.status == 429:
+            await asyncio.sleep(e.retry_after)
+            await ctx.author.send(MSG_RATE_LIMIT_REACHED)
+        else:
+            raise
+```
+
+### Funktionsdetails
+
+- Die Funktion durchläuft alle Kategorien des Servers (`guild`).
+- Für jede Kategorie, die mit dem Archivprefix (`ARCHIVE_PREFIX`) beginnt, werden alle darin enthaltenen Kanäle gelöscht.
+- Die Funktion behandelt Rate-Limits von Discord durch Abfangen von `HTTPException` und Anpassen der Wartezeiten entsprechend `retry_after`.
+- Nach dem Löschen der Kategorien und Kanäle wird eine Bestätigungsnachricht an den Benutzer gesendet.
+
+---
 
 ## Lizenz
-Dieser Bot ist unter der GNU General Public License v2.0 veröffentlicht.
 
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
+[Informationen zur Lizenz]
 
-### English
-
-
-## Description
-This Discord bot enables the saving and transferring of a Discord server's structure to other servers. It provides functionalities for archiving old channels and categories, as well as deleting the archive. The bot also considers Discord rate limits to ensure that requests are processed in accordance with Discord API restrictions.
-
-## Operation
-
-### Commands
-- `!save`: Saves the current server structure in a JSON file.
-- `!list`: Lists all saved server structures.
-- `!load <Number>`: Loads a saved server structure based on the numbered list shown by `!list`. Archives existing channels.
-- `!clear`: Deletes the archive with all its contained channels and categories.
-
-## Setup
-
-1. **Bot Token**: To run the bot, you need a Discord Bot Token, which you can obtain from the Discord Developer Portal. Insert this token at the end of the script.
-2. **Dependencies**: This script uses the `discord.py` library. Install the required libraries using `pip install -r requirements.txt`.
-3. **Execution**: Run the script in your Python environment. The bot should then log into your Discord server.
-
-## Code Segments
-
-### Initialization
-The bot is initialized with specific intents to access server information and message content.
-
-### Event Handlers
-- `on_ready()`: Called when the bot has successfully logged in and is ready.
-
-### Helper Functions
-- `save_guild_structure(guild_id)`: Saves the structure of the specified server.
-- `load_guild_structure(guild_id, structure_file)`: Loads a saved server structure and archives existing channels, considering Discord rate limits.
-- `archive_guild_channels(guild)`: Moves all channels into an archive category, taking into account Discord rate limits.
-- `list_saved_guilds()`: Lists all saved server structures.
-
-### Command Functions
-- `save_command(ctx)`: Handles the `!save` command.
-- `load_command(ctx, number)`: Handles the `!load` command with a number as an argument.
-- `list_command(ctx)`: Handles the `!list` command.
-- `clear_command(ctx)`: Handles the `!clear` command.
-
-### Bot Execution
-At the end of the script, the bot is started with the specified token.
-
-## License
-This bot is released under the GNU General Public License v2.0.
-
+---
