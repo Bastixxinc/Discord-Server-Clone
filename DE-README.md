@@ -177,6 +177,6 @@ async def clear_command(ctx):
 
 ## Lizenz
 
-Dieses Projekt ist mit der GNU General Public License, version 2 lizenziert
+Dieses Projekt ist mit der GNU General Public License, version 3 lizenziert
 
 ---
